@@ -79,8 +79,8 @@ def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     if not room or room.is_closed:
         return "В этом чате сейчас нет активной комнаты для покер-планирования."
 
-    if user_id == room.leader_id:
-        return "Лидер комнаты не участвует в голосовании."
+    # if user_id == room.leader_id:
+    #     return "Лидер комнаты не участвует в голосовании."
 
     if not room.active_round:
         return "Сейчас нет активного раунда. Ожидайте, пока лидер запустит новый раунд командой /start_round."
