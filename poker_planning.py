@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 FIBONACCI_CARDS: List[int] = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 
@@ -16,6 +17,12 @@ class Room:
     leader_id: int
     active_round: Optional[Round] = None
     is_closed: bool = False
+
+@dataclass
+class KeyboardMarkupReply:
+    text: str
+    markup: Optional[InlineKeyboardMarkup] = None
+
 
 
 rooms_by_chat: Dict[int, Room] = {}
@@ -41,26 +48,32 @@ def get_or_create_room(chat_id: int, initiator_id: int) -> Room:
     return room
 
 
-def start_round(chat_id: int, user_id: int) -> str:
+def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
     room = get_or_create_room(chat_id, user_id)
 
     if room.is_closed:
-        return "Комната в этом чате уже закрыта."
+        return KeyboardMarkupReply("Комната в этом чате уже закрыта.")
 
     if room.leader_id != user_id:
-        return "Только лидер этой комнаты может запускать раунд."
+        return KeyboardMarkupReply("Только лидер этой комнаты может запускать раунд.")
 
     room.active_round = Round()
 
+    keyboard = []
+    for card in FIBONACCI_CARDS:
+        keyboard.append([InlineKeyboardButton(str(card), callback_data=card)])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     cards_str = ", ".join(str(v) for v in FIBONACCI_CARDS)
-    return (
-        "Новый раунд покер-планирования начат.\n"
+    reply_text = ("Новый раунд покер-планирования начат.\n"
         f"Участники, выберите карту командой /vote <значение>.\n"
-        f"Доступные значения: {cards_str}."
-    )
+        f"Доступные значения: {cards_str}.")
+
+    return KeyboardMarkupReply(text=reply_text, markup=reply_markup)
 
 
-def vote(chat_id: int, user_id: int, card_value: int) -> str:
+def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     room = rooms_by_chat.get(chat_id)
     if not room or room.is_closed:
         return "В этом чате сейчас нет активной комнаты для покер-планирования."
@@ -83,7 +96,7 @@ def vote(chat_id: int, user_id: int, card_value: int) -> str:
 
     room.active_round.votes[user_id] = card_value
 
-    return "Ваш голос принят."
+    return f"Участник: {username} проголосовал(а)."
 
 
 def reveal_round(chat_id: int, user_names: Dict[int, str]) -> str:

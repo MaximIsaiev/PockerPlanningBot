@@ -2,7 +2,7 @@ import os
 import logging
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
 from poker_planning import (
     start_round,
@@ -57,37 +57,25 @@ async def start_round_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    message = start_round(chat_id, user_id)
-    await context.bot.send_message(chat_id=chat_id, text=message)
+    keyboard = start_round(chat_id, user_id)
+    await update.message.reply_text(keyboard.text, reply_markup=keyboard.markup)
 
 
-async def vote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def vote_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()  # Всегда вызывайте answer() для callback (так сказал deepseek)
+
     if not _ensure_group_chat(update):
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Команда /vote доступна только в групповых чатах.",
-        )
-        return
-
-    if not context.args:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Использование: /vote <значение>.",
-        )
-        return
-
-    try:
-        value = int(context.args[0])
-    except ValueError:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Значение должно быть числом. Пример: /vote 5",
+            text="Голосовать можно только в групповых чатах.",
         )
         return
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    message = vote(chat_id, user_id, value)
+    username = update.effective_user.username
+    message = vote(chat_id, user_id, username, int(query.data))
     await context.bot.send_message(chat_id=chat_id, text=message)
 
 
@@ -132,8 +120,8 @@ if __name__ == "__main__":
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("start_round", start_round_cmd))
-    application.add_handler(CommandHandler("vote", vote_cmd))
     application.add_handler(CommandHandler("reveal", reveal_cmd))
     application.add_handler(CommandHandler("close", close_cmd))
+    application.add_handler(CallbackQueryHandler(vote_callback))
 
     application.run_polling()
