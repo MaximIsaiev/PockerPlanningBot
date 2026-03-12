@@ -1,6 +1,10 @@
+import os
 import logging
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+
+load_dotenv()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -13,7 +17,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token('TOKEN').build()
+    token = os.getenv('BOT_TOKEN')
+    if not token:
+        raise ValueError("No BOT_TOKEN found in .env file")
+
+    application = ApplicationBuilder().token(token).build()
 
     start_handler = CommandHandler('start', start)
     application.add_handler(start_handler)
