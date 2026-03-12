@@ -66,10 +66,8 @@ def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    cards_str = ", ".join(str(v) for v in FIBONACCI_CARDS)
     reply_text = ("Новый раунд покер-планирования начат.\n"
-        f"Участники, выберите карту командой /vote <значение>.\n"
-        f"Доступные значения: {cards_str}.")
+        f"Участники, выберите карту с помощью меню снизу.\n")
 
     return KeyboardMarkupReply(text=reply_text, markup=reply_markup)
 

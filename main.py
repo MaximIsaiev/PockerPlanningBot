@@ -27,7 +27,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Этот чат будет использован как комната для покер-планирования.\n\n"
             "Основные команды:\n"
             "/start_round — лидер запускает раунд.\n"
-            "/vote <значение> — участники голосуют (ряд Фибоначчи до 100).\n"
             "/reveal — лидер показывает результаты текущего раунда.\n"
             "/close — лидер закрывает комнату в этом чате."
         )
@@ -36,7 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Привет! Я бот для покер-планирования.\n\n"
             "Чтобы использовать меня, добавьте бота в групповой чат команды и "
             "в этом чате выполните команду /start.\n"
-            "После этого используйте команды /start_round, /vote, /reveal и /close."
+            "После этого используйте команды /start_round, /reveal и /close."
         )
 
     await context.bot.send_message(chat_id=chat.id, text=text)
