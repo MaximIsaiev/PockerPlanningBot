@@ -5,13 +5,10 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from poker_planning import (
-    create_room,
-    join_room,
     start_round,
     vote,
+    reveal_round,
     close_room,
-    user_to_room,
-    finish_round_if_completed,
 )
 
 
@@ -24,45 +21,54 @@ logging.basicConfig(
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "Привет! Я бот для покер-планирования.\n\n"
-        "Основные команды:\n"
-        "/create — создать комнату и стать её лидером.\n"
-        "/join <код> — присоединиться к комнате по коду лидера.\n\n"
-        "Лидер запускает раунды командой /start_round, участники голосуют /vote <значение>,\n"
-        "а по завершении лидер может закрыть комнату командой /close."
-    )
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
-
-
-async def create_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    room, message = create_room(user_id)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
-
-
-async def join_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not context.args:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Использование: /join <код комнаты>.",
+    chat = update.effective_chat
+    if chat.type in ("group", "supergroup"):
+        text = (
+            "Этот чат будет использован как комната для покер-планирования.\n\n"
+            "Основные команды:\n"
+            "/start_round — лидер запускает раунд.\n"
+            "/vote <значение> — участники голосуют (ряд Фибоначчи до 100).\n"
+            "/reveal — лидер показывает результаты текущего раунда.\n"
+            "/close — лидер закрывает комнату в этом чате."
         )
-        return
+    else:
+        text = (
+            "Привет! Я бот для покер-планирования.\n\n"
+            "Чтобы использовать меня, добавьте бота в групповой чат команды и "
+            "в этом чате выполните команду /start.\n"
+            "После этого используйте команды /start_round, /vote, /reveal и /close."
+        )
 
-    code = context.args[0]
-    message = join_room(user_id, code)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    await context.bot.send_message(chat_id=chat.id, text=text)
+
+
+def _ensure_group_chat(update: Update) -> bool:
+    chat_type = update.effective_chat.type
+    return chat_type in ("group", "supergroup")
 
 
 async def start_round_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _ensure_group_chat(update):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Команда /start_round доступна только в групповых чатах.",
+        )
+        return
+
+    chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    message = start_round(user_id)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    message = start_round(chat_id, user_id)
+    await context.bot.send_message(chat_id=chat_id, text=message)
 
 
 async def vote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    if not _ensure_group_chat(update):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Команда /vote доступна только в групповых чатах.",
+        )
+        return
+
     if not context.args:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -79,31 +85,42 @@ async def vote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    message = vote(user_id, value)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    message = vote(chat_id, user_id, value)
+    await context.bot.send_message(chat_id=chat_id, text=message)
 
-    # если голос принят, проверяем, завершён ли раунд
-    code = user_to_room.get(user_id)
-    if not code:
+
+async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _ensure_group_chat(update):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Команда /reveal доступна только в групповых чатах.",
+        )
         return
 
-    # собираем имена пользователей для красивого вывода
-    chat = update.effective_chat
-    user_names: dict[int, str] = {}
+    chat_id = update.effective_chat.id
 
-    # в простом варианте используем только имя текущего пользователя,
-    # а остальных выводим по ID — улучшить можно позже через хранение имён
-    user_names[user_id] = update.effective_user.full_name
+    user_names: dict[int, str] = {
+        update.effective_user.id: update.effective_user.full_name
+    }
 
-    results_text = finish_round_if_completed(code, user_names)
-    if results_text:
-        await context.bot.send_message(chat_id=chat.id, text=results_text)
+    message = reveal_round(chat_id, user_names)
+    await context.bot.send_message(chat_id=chat_id, text=message)
 
 
 async def close_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not _ensure_group_chat(update):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Команда /close доступна только в групповых чатах.",
+        )
+        return
+
+    chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    message = close_room(user_id)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    message = close_room(chat_id, user_id)
+    await context.bot.send_message(chat_id=chat_id, text=message)
 
 
 if __name__ == "__main__":
@@ -114,10 +131,9 @@ if __name__ == "__main__":
     application = ApplicationBuilder().token(token).build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("create", create_cmd))
-    application.add_handler(CommandHandler("join", join_cmd))
     application.add_handler(CommandHandler("start_round", start_round_cmd))
     application.add_handler(CommandHandler("vote", vote_cmd))
+    application.add_handler(CommandHandler("reveal", reveal_cmd))
     application.add_handler(CommandHandler("close", close_cmd))
 
     application.run_polling()
