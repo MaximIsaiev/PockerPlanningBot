@@ -1,8 +1,8 @@
 import os
 import logging
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 
 from poker_planning import (
     start_round,
@@ -39,6 +39,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await context.bot.send_message(chat_id=chat.id, text=text)
+
+    keyboard = [
+        ["Начать раунд", "Показать результаты"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,  # Автоматически подгонять размер
+        input_field_placeholder="Выберите действие"
+    )
+
+    await update.message.reply_text(
+        "Выберите опцию в меню:",
+        reply_markup=reply_markup
+    )
 
 
 def _ensure_group_chat(update: Update) -> bool:
@@ -105,6 +120,13 @@ async def close_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = close_room(chat_id, user_id)
     await context.bot.send_message(chat_id=chat_id, text=message)
 
+async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text == "Начать раунд":
+        await start_round_cmd(update, context)
+    elif text == "Показать результаты":
+        await reveal_cmd(update, context)
+
 
 if __name__ == "__main__":
     token = os.getenv("BOT_TOKEN")
@@ -118,5 +140,6 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("reveal", reveal_cmd))
     application.add_handler(CommandHandler("close", close_cmd))
     application.add_handler(CallbackQueryHandler(vote_callback))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reply))
 
     application.run_polling()
