@@ -9,6 +9,7 @@ FIBONACCI_CARDS: List[int] = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 class Round:
     votes: Dict[int, int] = field(default_factory=dict)
     is_finished: bool = False
+    participants: Dict[int, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -95,11 +96,12 @@ def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
         )
 
     room.active_round.votes[user_id] = card_value
+    room.active_round.participants[user_id] = username
 
     return f"Участник: {username} проголосовал(а)."
 
 
-def reveal_round(chat_id: int, user_names: Dict[int, str]) -> str:
+def reveal_round(chat_id: int) -> str:
     room = rooms_by_chat.get(chat_id)
     if not room or not room.active_round:
         return "Сейчас нет активного раунда для показа результатов."
@@ -117,7 +119,7 @@ def reveal_round(chat_id: int, user_names: Dict[int, str]) -> str:
 
     lines = ["Раунд завершён. Результаты:"]
     for uid, value in votes.items():
-        name = user_names.get(uid, str(uid))
+        name = room.active_round.participants.get(uid, str(uid))
         lines.append(f"- {name}: {value}")
 
     lines.append(f"\nСреднее значение: {avg:.2f}")

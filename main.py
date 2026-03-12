@@ -74,7 +74,7 @@ async def vote_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    username = update.effective_user.username
+    username = update.effective_user.full_name
     message = vote(chat_id, user_id, username, int(query.data))
     await context.bot.send_message(chat_id=chat_id, text=message)
 
@@ -89,11 +89,7 @@ async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
 
-    user_names: dict[int, str] = {
-        update.effective_user.id: update.effective_user.full_name
-    }
-
-    message = reveal_round(chat_id, user_names)
+    message = reveal_round(chat_id)
     await context.bot.send_message(chat_id=chat_id, text=message)
 
 
