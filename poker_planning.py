@@ -51,7 +51,7 @@ def get_or_create_room(chat_id: int) -> Room:
     return room
 
 
-def start_round(chat_id: int) -> KeyboardMarkupReply:
+def _start_round(chat_id: int) -> KeyboardMarkupReply:
     room = get_or_create_room(chat_id)
 
     if room.active_round:
@@ -73,7 +73,7 @@ def start_round(chat_id: int) -> KeyboardMarkupReply:
     return KeyboardMarkupReply(text=reply_text, markup=reply_markup)
 
 
-def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
+def _vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     room = rooms_by_chat.get(chat_id)
 
     if not room.active_round:
@@ -92,7 +92,7 @@ def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     return f"Голос участника {username} принят."
 
 
-def reveal_round(chat_id: int) -> str:
+def _reveal_round(chat_id: int) -> str:
     room = rooms_by_chat.get(chat_id)
     if not room or not room.active_round:
         return "Сейчас нет активного раунда для показа результатов."
