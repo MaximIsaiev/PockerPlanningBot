@@ -1,8 +1,8 @@
 import os
 import logging
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
 from poker_planning import (
     start_round,
@@ -20,45 +20,44 @@ logging.basicConfig(
 )
 
 
+def _ensure_group_chat(update: Update) -> bool:
+    return update.effective_chat.type in ("group", "supergroup")
+
+
+def build_leader_keyboard() -> InlineKeyboardMarkup:
+    buttons = [
+        [
+            InlineKeyboardButton("Начать раунд", callback_data="start_round"),
+            InlineKeyboardButton("Показать результаты", callback_data="reveal"),
+        ],
+        [
+            InlineKeyboardButton("Закрыть комнату", callback_data="close"),
+        ],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
+
     if chat.type in ("group", "supergroup"):
         text = (
-            "Этот чат будет использован как комната для покер-планирования.\n\n"
-            "Основные команды:\n"
-            "/start_round — лидер запускает раунд.\n"
-            "/reveal — лидер показывает результаты текущего раунда.\n"
-            "/close — лидер закрывает комнату в этом чате."
+            "Привет! Этот чат используется как комната для покер‑планирования.\n\n"
+            "Лидер может запустить раунд, показать результаты и закрыть комнату "
+            "с помощью кнопок ниже или соответствующих команд."
+        )
+        await context.bot.send_message(
+            chat_id=chat.id,
+            text=text,
+            reply_markup=build_leader_keyboard(),
         )
     else:
         text = (
-            "Привет! Я бот для покер-планирования.\n\n"
-            "Чтобы использовать меня, добавьте бота в групповой чат команды и "
-            "в этом чате выполните команду /start.\n"
-            "После этого используйте команды /start_round, /reveal и /close."
+            "Привет! Я бот для покер‑планирования.\n\n"
+            "Чтобы начать, добавьте меня в групповой чат вашей команды и "
+            "в этом чате отправьте команду /start."
         )
-
-    await context.bot.send_message(chat_id=chat.id, text=text)
-
-    keyboard = [
-        ["Начать раунд", "Показать результаты"]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True,  # Автоматически подгонять размер
-        input_field_placeholder="Выберите действие"
-    )
-
-    await update.message.reply_text(
-        "Выберите опцию в меню:",
-        reply_markup=reply_markup
-    )
-
-
-def _ensure_group_chat(update: Update) -> bool:
-    chat_type = update.effective_chat.type
-    return chat_type in ("group", "supergroup")
+        await context.bot.send_message(chat_id=chat.id, text=text)
 
 
 async def start_round_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,26 +70,8 @@ async def start_round_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
-    keyboard = start_round(chat_id, user_id)
-    await update.message.reply_text(keyboard.text, reply_markup=keyboard.markup)
-
-
-async def vote_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()  # Всегда вызывайте answer() для callback (так сказал deepseek)
-
-    if not _ensure_group_chat(update):
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Голосовать можно только в групповых чатах.",
-        )
-        return
-
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-    username = update.effective_user.full_name
-    message = vote(chat_id, user_id, username, int(query.data))
-    await context.bot.send_message(chat_id=chat_id, text=message)
+    reply = start_round(chat_id, user_id)
+    await context.bot.send_message(chat_id=chat_id, text=reply.text, reply_markup=reply.markup)
 
 
 async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,7 +83,6 @@ async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_chat.id
-
     message = reveal_round(chat_id)
     await context.bot.send_message(chat_id=chat_id, text=message)
 
@@ -120,12 +100,44 @@ async def close_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = close_room(chat_id, user_id)
     await context.bot.send_message(chat_id=chat_id, text=message)
 
-async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "Начать раунд":
-        await start_round_cmd(update, context)
-    elif text == "Показать результаты":
-        await reveal_cmd(update, context)
+
+async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not _ensure_group_chat(update):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Кнопки доступны только в групповых чатах.",
+        )
+        return
+
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+    data = query.data or ""
+
+    if data == "start_round":
+        reply = start_round(chat_id, user_id)
+        await context.bot.send_message(chat_id=chat_id, text=reply.text, reply_markup=reply.markup)
+        return
+
+    if data == "reveal":
+        message = reveal_round(chat_id)
+        await context.bot.send_message(chat_id=chat_id, text=message)
+        return
+
+    if data == "close":
+        message = close_room(chat_id, user_id)
+        await context.bot.send_message(chat_id=chat_id, text=message)
+        return
+
+    # остальное трактуем как голосование, callback_data содержит число
+    if data.isdigit():
+        value = int(data)
+        username = update.effective_user.full_name
+        message = vote(chat_id, user_id, username, value)
+        await context.bot.send_message(chat_id=chat_id, text=message)
+        return
 
 
 if __name__ == "__main__":
@@ -139,7 +151,6 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("start_round", start_round_cmd))
     application.add_handler(CommandHandler("reveal", reveal_cmd))
     application.add_handler(CommandHandler("close", close_cmd))
-    application.add_handler(CallbackQueryHandler(vote_callback))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reply))
+    application.add_handler(CallbackQueryHandler(on_callback))
 
     application.run_polling()

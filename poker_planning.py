@@ -19,14 +19,18 @@ class Room:
     active_round: Optional[Round] = None
     is_closed: bool = False
 
+
 @dataclass
 class KeyboardMarkupReply:
     text: str
     markup: Optional[InlineKeyboardMarkup] = None
 
 
-
 rooms_by_chat: Dict[int, Room] = {}
+
+
+def get_fibonacci_cards() -> List[int]:
+    return list(FIBONACCI_CARDS)
 
 
 def validate_card_value(value: int) -> bool:
@@ -53,21 +57,23 @@ def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
     room = get_or_create_room(chat_id, user_id)
 
     if room.is_closed:
-        return KeyboardMarkupReply("Комната в этом чате уже закрыта.")
+        return KeyboardMarkupReply("Комната в этом чате уже закрыта. Откройте новый раунд в другом чате.")
 
     if room.leader_id != user_id:
         return KeyboardMarkupReply("Только лидер этой комнаты может запускать раунд.")
 
     room.active_round = Round()
 
-    keyboard = []
-    for card in FIBONACCI_CARDS:
-        keyboard.append([InlineKeyboardButton(str(card), callback_data=card)])
-
+    keyboard = [
+        [InlineKeyboardButton(str(card), callback_data=str(card))]
+        for card in FIBONACCI_CARDS
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    reply_text = ("Новый раунд покер-планирования начат.\n"
-        f"Участники, выберите карту с помощью меню снизу.\n")
+    reply_text = (
+        "Новый раунд покер‑планирования начат.\n"
+        "Выберите карту, нажав одну из кнопок ниже."
+    )
 
     return KeyboardMarkupReply(text=reply_text, markup=reply_markup)
 
@@ -75,28 +81,22 @@ def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
 def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     room = rooms_by_chat.get(chat_id)
     if not room or room.is_closed:
-        return "В этом чате сейчас нет активной комнаты для покер-планирования."
-
-    # if user_id == room.leader_id:
-    #     return "Лидер комнаты не участвует в голосовании."
+        return "В этом чате сейчас нет активной комнаты для покер‑планирования."
 
     if not room.active_round:
-        return "Сейчас нет активного раунда. Ожидайте, пока лидер запустит новый раунд командой /start_round."
+        return "Сейчас нет активного раунда. Попросите лидера запустить новый раунд."
 
     if room.active_round.is_finished:
-        return "Текущий раунд уже завершён. Начните новый раунд командой /start_round."
+        return "Текущий раунд уже завершён. Начните новый раунд перед голосованием."
 
     if not validate_card_value(card_value):
         cards_str = ", ".join(str(v) for v in FIBONACCI_CARDS)
-        return (
-            f"Некорректное значение карты. Допустимые значения: {cards_str}.\n"
-            "Пример: /vote 5"
-        )
+        return f"Некорректное значение карты. Допустимые значения: {cards_str}."
 
     room.active_round.votes[user_id] = card_value
     room.active_round.participants[user_id] = username
 
-    return f"Участник: {username} проголосовал(а)."
+    return f"Голос участника {username} принят."
 
 
 def reveal_round(chat_id: int) -> str:
@@ -105,7 +105,7 @@ def reveal_round(chat_id: int) -> str:
         return "Сейчас нет активного раунда для показа результатов."
 
     if room.active_round.is_finished:
-        return "Текущий раунд уже завершён. Начните новый раунд командой /start_round."
+        return "Текущий раунд уже завершён. Запустите новый, чтобы продолжить оценку."
 
     votes = room.active_round.votes
     if not votes:
@@ -128,7 +128,7 @@ def reveal_round(chat_id: int) -> str:
 def close_room(chat_id: int, user_id: int) -> str:
     room = rooms_by_chat.get(chat_id)
     if not room:
-        return "В этом чате ещё не было создано комнаты для покер-планирования."
+        return "В этом чате ещё не было создано комнаты для покер‑планирования."
 
     if room.leader_id != user_id:
         return "Только лидер этой комнаты может её закрыть."
@@ -139,5 +139,5 @@ def close_room(chat_id: int, user_id: int) -> str:
     room.is_closed = True
     room.active_round = None
 
-    return "Комната для покер-планирования в этом чате закрыта. Для новой игры начните новый раунд командой /start_round."
+    return "Комната для покер‑планирования в этом чате закрыта. Для новой игры запустите новый раунд."
 
