@@ -15,9 +15,7 @@ class Round:
 @dataclass
 class Room:
     chat_id: int
-    leader_id: int
     active_round: Optional[Round] = None
-    is_closed: bool = False
 
 
 @dataclass
@@ -43,24 +41,21 @@ def calculate_average(votes: Dict[int, int]) -> float:
     return sum(votes.values()) / len(votes)
 
 
-def get_or_create_room(chat_id: int, initiator_id: int) -> Room:
+def get_or_create_room(chat_id: int) -> Room:
     room = rooms_by_chat.get(chat_id)
-    if room and not room.is_closed:
+    if room:
         return room
 
-    room = Room(chat_id=chat_id, leader_id=initiator_id)
+    room = Room(chat_id=chat_id)
     rooms_by_chat[chat_id] = room
     return room
 
 
-def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
-    room = get_or_create_room(chat_id, user_id)
+def start_round(chat_id: int) -> KeyboardMarkupReply:
+    room = get_or_create_room(chat_id)
 
-    if room.is_closed:
-        return KeyboardMarkupReply("Комната в этом чате уже закрыта. Откройте новый раунд в другом чате.")
-
-    if room.leader_id != user_id:
-        return KeyboardMarkupReply("Только лидер этой комнаты может запускать раунд.")
+    if room.active_round:
+        return KeyboardMarkupReply("Чтобы начать новый раунд, сначала завершите текущий.")
 
     room.active_round = Round()
 
@@ -80,8 +75,6 @@ def start_round(chat_id: int, user_id: int) -> KeyboardMarkupReply:
 
 def vote(chat_id: int, user_id: int, username: str, card_value: int) -> str:
     room = rooms_by_chat.get(chat_id)
-    if not room or room.is_closed:
-        return "В этом чате сейчас нет активной комнаты для покер‑планирования."
 
     if not room.active_round:
         return "Сейчас нет активного раунда. Попросите лидера запустить новый раунд."
@@ -123,21 +116,3 @@ def reveal_round(chat_id: int) -> str:
     lines.append(f"\nСреднее значение: {avg:.2f}")
 
     return "\n".join(lines)
-
-
-def close_room(chat_id: int, user_id: int) -> str:
-    room = rooms_by_chat.get(chat_id)
-    if not room:
-        return "В этом чате ещё не было создано комнаты для покер‑планирования."
-
-    if room.leader_id != user_id:
-        return "Только лидер этой комнаты может её закрыть."
-
-    if room.is_closed:
-        return "Комната уже закрыта."
-
-    room.is_closed = True
-    room.active_round = None
-
-    return "Комната для покер‑планирования в этом чате закрыта. Для новой игры запустите новый раунд."
-

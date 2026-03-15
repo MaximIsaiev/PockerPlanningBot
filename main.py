@@ -8,7 +8,6 @@ from poker_planning import (
     start_round,
     vote,
     reveal_round,
-    close_room,
 )
 
 
@@ -23,17 +22,23 @@ logging.basicConfig(
 def _ensure_group_chat(update: Update) -> bool:
     return update.effective_chat.type in ("group", "supergroup")
 
-
-def build_leader_keyboard() -> InlineKeyboardMarkup:
+def build_start_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton("Начать раунд", callback_data="start_round"),
-            InlineKeyboardButton("Показать результаты", callback_data="reveal"),
-        ],
-        [
-            InlineKeyboardButton("Закрыть комнату", callback_data="close"),
-        ],
+        ]
     ]
+
+    return InlineKeyboardMarkup(buttons)
+
+
+def build_reveal_keyboard() -> InlineKeyboardMarkup:
+    buttons = [
+        [
+            InlineKeyboardButton("Показать результаты", callback_data="reveal"),
+        ]
+    ]
+
     return InlineKeyboardMarkup(buttons)
 
 
@@ -43,13 +48,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat.type in ("group", "supergroup"):
         text = (
             "Привет! Этот чат используется как комната для покер‑планирования.\n\n"
-            "Лидер может запустить раунд, показать результаты и закрыть комнату "
-            "с помощью кнопок ниже или соответствующих команд."
+            "Чтобы запустить раунд, нажми соответсвующую кнопку ниже."
         )
         await context.bot.send_message(
             chat_id=chat.id,
             text=text,
-            reply_markup=build_leader_keyboard(),
+            reply_markup=build_start_keyboard(),
         )
     else:
         text = (
@@ -69,9 +73,11 @@ async def start_round_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-    reply = start_round(chat_id, user_id)
+    reply = start_round(chat_id)
     await context.bot.send_message(chat_id=chat_id, text=reply.text, reply_markup=reply.markup)
+
+    text = "Завершить раунд можно с помощью кнопки ниже."
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=build_reveal_keyboard())
 
 
 async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -86,19 +92,8 @@ async def reveal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = reveal_round(chat_id)
     await context.bot.send_message(chat_id=chat_id, text=message)
 
-
-async def close_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not _ensure_group_chat(update):
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Команда /close доступна только в групповых чатах.",
-        )
-        return
-
-    chat_id = update.effective_chat.id
-    user_id = update.effective_user.id
-    message = close_room(chat_id, user_id)
-    await context.bot.send_message(chat_id=chat_id, text=message)
+    text = "Начать новый раунд можно с помощью кнопки ниже."
+    await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=build_start_keyboard())
 
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -117,17 +112,12 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
 
     if data == "start_round":
-        reply = start_round(chat_id, user_id)
+        reply = start_round(chat_id)
         await context.bot.send_message(chat_id=chat_id, text=reply.text, reply_markup=reply.markup)
         return
 
     if data == "reveal":
         message = reveal_round(chat_id)
-        await context.bot.send_message(chat_id=chat_id, text=message)
-        return
-
-    if data == "close":
-        message = close_room(chat_id, user_id)
         await context.bot.send_message(chat_id=chat_id, text=message)
         return
 
@@ -150,7 +140,6 @@ if __name__ == "__main__":
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("start_round", start_round_cmd))
     application.add_handler(CommandHandler("reveal", reveal_cmd))
-    application.add_handler(CommandHandler("close", close_cmd))
     application.add_handler(CallbackQueryHandler(on_callback))
 
     application.run_polling()
