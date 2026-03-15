@@ -54,7 +54,7 @@ def get_or_create_room(chat_id: int) -> Room:
 def _start_round(chat_id: int) -> KeyboardMarkupReply:
     room = get_or_create_room(chat_id)
 
-    if room.active_round:
+    if room.active_round and not room.active_round.is_finished:
         return KeyboardMarkupReply("Чтобы начать новый раунд, сначала завершите текущий.")
 
     room.active_round = Round()
